@@ -1,0 +1,58 @@
+name: Deploy to EKS
+
+# התהליך ירוץ אוטומטית בכל דחיפת קוד לענף main כפי שנדרש במשימה
+on:
+  push:
+    branches:
+      - main 
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: gilad-flask-app
+  EKS_CLUSTER_NAME: gilad-eks-cluster
+
+jobs:
+  build-and-deploy:
+    name: Build, Push and Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Best Practice - שימוש ב-Secrets לאבטחת פרטי ההתחברות ל-AWS
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    # בנייה ודחיפה של תמונת הדוקר ל-ECR
+    - name: Build, tag, and push image to Amazon ECR
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        # Best Practice - תיוג התמונה עם מזהה הקומיט הייחודי של גיטהאב
+        IMAGE_TAG: ${{ github.sha }} 
+      run: |
+        cd app
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+    # התחברות לקלאסטר ה-EKS
+    - name: Update kube config
+      run: aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
+
+    # פריסה ועדכון האפליקציה בעזרת Helm
+    - name: Deploy to EKS using Helm
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        helm upgrade --install my-flask-release ./helm/flask-app \
+          --set image.repository=$ECR_REGISTRY/$ECR_REPOSITORY \
+          --set image.tag=$IMAGE_TAG

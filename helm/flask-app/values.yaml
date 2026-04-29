@@ -1,0 +1,9 @@
+image:
+  repository: "066380525112.dkr.ecr.us-east-1.amazonaws.com/gilad-flask-app"
+  tag: "latest"
+  pullPolicy: Always
+
+# הגדרות החשיפה לרשת
+service:
+  type: LoadBalancer 
+  port: 5000 
