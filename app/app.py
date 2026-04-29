@@ -6,7 +6,7 @@ app = Flask(__name__)
 # הגדרת הנתיב הראשי של האפליקציה
 @app.route('/')
 def hello():
-    return "hello gilad"
+    return "hello gilad you are the best!"
 
 # הרצת השרת
 if __name__ == '__main__':
